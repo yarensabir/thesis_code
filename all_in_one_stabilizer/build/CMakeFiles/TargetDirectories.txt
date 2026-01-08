@@ -1,0 +1,3 @@
+/home/pi/thesis_code/all_in_one_stabilizer/build/CMakeFiles/Stabilizer.dir
+/home/pi/thesis_code/all_in_one_stabilizer/build/CMakeFiles/edit_cache.dir
+/home/pi/thesis_code/all_in_one_stabilizer/build/CMakeFiles/rebuild_cache.dir

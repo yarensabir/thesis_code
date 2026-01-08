@@ -11,13 +11,10 @@
 using namespace cv;
 using namespace std;
 
-// ---------------------------------------------------------
-// YARDIMCI SINIF: KALMAN FILTRESI
-// ---------------------------------------------------------
+// ... (MotionKalman struct'ı aynı kalacak, buraya tekrar yazmadım yer kaplamasın diye) ...
 struct MotionKalman {
     KalmanFilter KF;
     Mat state, meas;
-
     MotionKalman() {
         KF.init(6, 3, 0); 
         setIdentity(KF.transitionMatrix);
@@ -27,12 +24,9 @@ struct MotionKalman {
         setIdentity(KF.errorCovPost, Scalar::all(1));
         meas = Mat::zeros(3, 1, CV_32F);
     }
-
     TransformParam update(TransformParam raw) {
         KF.predict();
-        meas.at<float>(0) = (float)raw.dx;
-        meas.at<float>(1) = (float)raw.dy;
-        meas.at<float>(2) = (float)raw.da;
+        meas.at<float>(0) = (float)raw.dx; meas.at<float>(1) = (float)raw.dy; meas.at<float>(2) = (float)raw.da;
         Mat estimated = KF.correct(meas);
         return TransformParam(estimated.at<float>(0), estimated.at<float>(1), estimated.at<float>(2));
     }
@@ -41,31 +35,25 @@ struct MotionKalman {
 // ---------------------------------------------------------
 // 1. GERÇEK ZAMANLI FONKSİYON
 // ---------------------------------------------------------
-// Parametreye 'outputName' eklendi
-void runRealTimeStabilization(RealTimeMethod method, string outputName) {
+// GÜNCELLEME: 'logName' parametresi eklendi
+void runRealTimeStabilization(RealTimeMethod method, string outputName, string logName) {
     cout << "[Real-Time] Pi Kamera GStreamer ile aciliyor..." << endl;
-    if (method == RT_KALMAN_FILTER) cout << ">> Yontem: KALMAN FILTRESI" << endl;
-    else cout << ">> Yontem: KAYAN PENCERE (BUFFER)" << endl;
-
-    // Not: Yüksek çözünürlük istersen width=1280, height=720 yapabilirsin.
+    
+    // ... (Pipeline ve VideoCapture aynı) ...
     string pipeline = "libcamerasrc ! video/x-raw, width=640, height=480, framerate=30/1 ! videoconvert ! appsink";
     VideoCapture cap(pipeline, CAP_GSTREAMER);
-
     if(!cap.isOpened()) { cerr << "Hata: Kamera acilamadi!" << endl; return; }
 
-    // DÜZELTME: İlk kareyi alıp gerçek boyutları öğreniyoruz
-    Mat curr;
-    cap >> curr;
+    Mat curr; cap >> curr;
     if (curr.empty()) return;
-    
-    int w = curr.cols;
-    int h = curr.rows;
+    int w = curr.cols; int h = curr.rows;
 
-    // DÜZELTME: outputName kullanıldı ve dinamik boyut (w, h) verildi
     VideoWriter writer(outputName, VideoWriter::fourcc('m','p','4','v'), 30, Size(w, h));
     
-    FILE* fp = fopen("data_realtime.csv", "w");
-    fprintf(fp, "frame,raw_x,smooth_x\n");
+    // GÜNCELLEME: Dosya ismi parametreden alınıyor (c_str() gerekli çünkü fopen C fonksiyonu)
+    FILE* fp = fopen(logName.c_str(), "w");
+    // Başlığa FPS ve Time eklendi
+    fprintf(fp, "frame,raw_x,smooth_x,fps,process_time_ms\n");
 
     MotionEstimator estimator;
     MotionKalman kf; 
@@ -77,29 +65,22 @@ void runRealTimeStabilization(RealTimeMethod method, string outputName) {
     TransformParam smoothed_pos(0,0,0); 
 
     estimator.initialize(curr);
-
-    // Başlangıç değerleri
     motion_buffer.push_back(TransformParam(0,0,0));
     frame_buffer.push_back(curr.clone());
 
     int frame_idx = 0;
-    cout << "Islem basliyor... Kayit: " << outputName << endl;
-
-    fprintf(fp, "frame,raw_x,smooth_x,fps,process_time_ms\n");
+    cout << "Islem basliyor... Video: " << outputName << " | Log: " << logName << endl;
 
     while(true) {
-        // 1. Süreölçer Başlat
-        double t_start = (double)cv::getTickCount();
-        
+        double t_start = (double)cv::getTickCount(); // Zaman Başla
+
         cap >> curr;
         if(curr.empty()) break;
 
         TransformParam motion = estimator.estimate(curr);
         cumulative_motion += motion;
 
-        if (method == RT_KALMAN_FILTER) {
-            smoothed_pos = kf.update(cumulative_motion);
-        }
+        if (method == RT_KALMAN_FILTER) smoothed_pos = kf.update(cumulative_motion);
         
         motion_buffer.push_back(cumulative_motion);
         frame_buffer.push_back(curr.clone());
@@ -121,21 +102,20 @@ void runRealTimeStabilization(RealTimeMethod method, string outputName) {
 
             writer.write(stabilized);
 
-            // 2. Süreölçer Durdur ve Hesapla
+            // Zaman Bitiş ve FPS Hesaplama
             double t_end = (double)cv::getTickCount();
-            double time_spent = (t_end - t_start) / cv::getTickFrequency();
-            double fps = 1.0 / time_spent;
-            double time_ms = time_spent * 1000.0;
+            double time_ms = ((t_end - t_start) / cv::getTickFrequency()) * 1000.0;
+            double fps = 1000.0 / time_ms;
 
-            // target_pos: O an dosyaya yazılan karenin ham hali
-            // smoothed_pos: O an dosyaya yazılan karenin yumuşatılmış hali
+            // GÜNCELLEME: target_pos kullanılarak doğru loglama
             fprintf(fp, "%d, %f, %f, %.2f, %.2f\n", frame_idx, target_pos.dx, smoothed_pos.dx, fps, time_ms);
+
             frame_buffer.pop_front();
             motion_buffer.pop_front();
             frame_idx++;
         }
     }
-    
+    // Kalan buffer boşaltma
     while(!frame_buffer.empty()) {
         writer.write(frame_buffer.front());
         frame_buffer.pop_front();
@@ -145,14 +125,11 @@ void runRealTimeStabilization(RealTimeMethod method, string outputName) {
 }
 
 // ---------------------------------------------------------
-// 2. ÇEVRİMDIŞI FONKSİYON 
+// 2. ÇEVRİMDIŞI FONKSİYON
 // ---------------------------------------------------------
-// Parametreye 'outputName' eklendi
-void runOfflineStabilization(string videoPath, OfflineMethod method, string outputName) {
+// GÜNCELLEME: 'logName' parametresi eklendi
+void runOfflineStabilization(string videoPath, OfflineMethod method, string outputName, string logName) {
     cout << "[Offline] Analiz yapiliyor..." << endl;
-    if (method == OFF_GAUSSIAN) cout << ">> Yontem: GAUSSIAN SMOOTHING" << endl;
-    else cout << ">> Yontem: MOVING AVERAGE" << endl;
-
     VideoCapture cap(videoPath);
     if(!cap.isOpened()) { cerr << "Dosya yok!" << endl; return; }
 
@@ -176,7 +153,6 @@ void runOfflineStabilization(string videoPath, OfflineMethod method, string outp
     }
     
     // PASS 2: Yumuşatma
-    cout << "Yumusatma uygulaniyor..." << endl;
     vector<TransformParam> smoothed_trajectory;
     int RADIUS = 30; 
 
@@ -194,39 +170,26 @@ void runOfflineStabilization(string videoPath, OfflineMethod method, string outp
                     double sigma = RADIUS / 3.0;
                     double weight = exp(-(j*j) / (2 * sigma * sigma));
                     TransformParam p = trajectory[i+j];
-                    sum.dx += p.dx * weight;
-                    sum.dy += p.dy * weight;
-                    sum.da += p.da * weight;
+                    sum.dx += p.dx * weight; sum.dy += p.dy * weight; sum.da += p.da * weight;
                     total_weight += weight;
                 }
             }
         }
-        
-        if (method == OFF_MOVING_AVERAGE) {
-            smoothed_trajectory.push_back(sum / total_weight);
-        } else {
-            smoothed_trajectory.push_back(TransformParam(sum.dx/total_weight, sum.dy/total_weight, sum.da/total_weight));
-        }
+        if (method == OFF_MOVING_AVERAGE) smoothed_trajectory.push_back(sum / total_weight);
+        else smoothed_trajectory.push_back(TransformParam(sum.dx/total_weight, sum.dy/total_weight, sum.da/total_weight));
     }
 
-    // ... PASS 2: Yumuşatma döngüsü bittikten sonra ...
-
-    // [TEZ VERİSİ] CSV Kaydı Başlangıcı
-    ofstream logFile("sonuc_offline.csv");
+    // GÜNCELLEME: CSV Kaydı (Parametreden gelen 'logName' kullanılıyor)
+    cout << "Veriler kaydediliyor: " << logName << endl;
+    ofstream logFile(logName);
     logFile << "frame,raw_x,raw_y,raw_a,smooth_x,smooth_y,smooth_a" << endl;
-
     for(size_t i=0; i < trajectory.size(); i++) {
-        // trajectory[i] -> Ham (Sarsıntılı) veriler
-        // smoothed_trajectory[i] -> Filtrelenmiş (Stabil) veriler
-        
-        // Verileri virgülle ayrılmış (CSV) formatta yaz
         logFile << i << "," 
                 << trajectory[i].dx << "," << trajectory[i].dy << "," << trajectory[i].da << ","
                 << smoothed_trajectory[i].dx << "," << smoothed_trajectory[i].dy << "," << smoothed_trajectory[i].da 
                 << endl;
     }
     logFile.close();
-    cout << ">> Analiz verileri 'sonuc_offline.csv' dosyasina kaydedildi." << endl;
 
     // PASS 3: Video Yazma
     cout << "Video olusturuluyor: " << outputName << endl;
@@ -234,9 +197,7 @@ void runOfflineStabilization(string videoPath, OfflineMethod method, string outp
     int w = (int)cap.get(CAP_PROP_FRAME_WIDTH);
     int h = (int)cap.get(CAP_PROP_FRAME_HEIGHT);
     
-    // DÜZELTME: outputName kullanıldı
     VideoWriter writer(outputName, VideoWriter::fourcc('m','p','4','v'), 30, Size(w,h));
-    
     cap >> curr; 
     for(size_t i=0; i<transforms.size(); i++) {
         cap >> curr;

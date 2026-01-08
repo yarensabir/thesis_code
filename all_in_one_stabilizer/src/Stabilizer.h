@@ -12,5 +12,5 @@ enum OfflineMethod {
 };
 
 // DEĞİŞİKLİK BURADA: Sona 'std::string outputName' ekledik
-void runRealTimeStabilization(RealTimeMethod method, std::string outputName);
-void runOfflineStabilization(std::string inputPath, OfflineMethod method, std::string outputName);
+void runRealTimeStabilization(RealTimeMethod method, std::string outputName, std::string logName);
+void runOfflineStabilization(std::string inputPath, OfflineMethod method, std::string outputName, std::string logName);

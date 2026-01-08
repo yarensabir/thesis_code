@@ -1,15 +1,26 @@
+
+// /home/pi/data/source/
+// /home/pi/data/result/
+// /home/pi/data/result_csv/
+
 #include <iostream>
 #include "Stabilizer.h" 
 
 using namespace std;
 
 int main() {
+    // ---------------- AYARLAR ----------------
     // Girdi videosu (Offline test için)
-    string videoPath = "/home/pi/Documents/thesis/test_video/ControlCam_7sec.mp4"; 
+    string videoPath = "/home/pi/data/source/TEST_1.mp4"; 
     
-    // Çıktı dosya isimlerini burada belirliyoruz
-    string outRT = "Result_RealTime.mp4";
-    string outOffline = "Result_Offline.mp4";
+    // Çıktı Video İsimleri
+    string outRT = "/home/pi/data/result/Result_RealTime.mp4";
+    string outOffline = "/home/pi/data/result/Result_TEST_1_Gaussian.mp4";
+
+    // Analiz Veri Dosyası (CSV) İsimleri 
+    string csvRT = "/home/pi/data/result_csv/data_realtime.csv";
+    string csvOffline = "/home/pi/data/result_csv/Result_TEST_1_Gaussian.csv";
+    // -----------------------------------------
 
     int mainChoice, subChoice;
     cout << "==========================================" << endl;
@@ -27,9 +38,9 @@ int main() {
         cout << "Yontem: ";
         cin >> subChoice;
 
-        // DÜZELTME: Dosya adı parametresi (outRT) eklendi
-        if(subChoice == 1) runRealTimeStabilization(RT_SLIDING_WINDOW, outRT);
-        else if(subChoice == 2) runRealTimeStabilization(RT_KALMAN_FILTER, outRT);
+        // GÜNCELLEME: csvRT parametresi eklendi
+        if(subChoice == 1) runRealTimeStabilization(RT_SLIDING_WINDOW, outRT, csvRT);
+        else if(subChoice == 2) runRealTimeStabilization(RT_KALMAN_FILTER, outRT, csvRT);
         else cout << "Hatali secim!" << endl;
 
     } else if (mainChoice == 2) {
@@ -39,9 +50,9 @@ int main() {
         cout << "Yontem: ";
         cin >> subChoice;
 
-        // DÜZELTME: Dosya adı parametresi (outOffline) eklendi
-        if(subChoice == 1) runOfflineStabilization(videoPath, OFF_MOVING_AVERAGE, outOffline);
-        else if(subChoice == 2) runOfflineStabilization(videoPath, OFF_GAUSSIAN, outOffline);
+        // GÜNCELLEME: csvOffline parametresi eklendi
+        if(subChoice == 1) runOfflineStabilization(videoPath, OFF_MOVING_AVERAGE, outOffline, csvOffline);
+        else if(subChoice == 2) runOfflineStabilization(videoPath, OFF_GAUSSIAN, outOffline, csvOffline);
         else cout << "Hatali secim!" << endl;
 
     } else {
