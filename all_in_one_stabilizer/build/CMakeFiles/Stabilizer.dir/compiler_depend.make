@@ -796,7 +796,57 @@ CMakeFiles/Stabilizer.dir/src/Stabilizer.cpp.o: /home/pi/thesis_code/all_in_one_
   /usr/include/c++/12/fstream \
   /usr/include/aarch64-linux-gnu/c++/12/bits/basic_file.h \
   /usr/include/aarch64-linux-gnu/c++/12/bits/c++io.h \
-  /usr/include/c++/12/bits/fstream.tcc
+  /usr/include/c++/12/bits/fstream.tcc \
+  /usr/include/c++/12/csignal \
+  /usr/include/signal.h \
+  /usr/include/aarch64-linux-gnu/bits/signum-generic.h \
+  /usr/include/aarch64-linux-gnu/bits/signum-arch.h \
+  /usr/include/aarch64-linux-gnu/bits/types/sig_atomic_t.h \
+  /usr/include/aarch64-linux-gnu/bits/types/siginfo_t.h \
+  /usr/include/aarch64-linux-gnu/bits/types/__sigval_t.h \
+  /usr/include/aarch64-linux-gnu/bits/siginfo-arch.h \
+  /usr/include/aarch64-linux-gnu/bits/siginfo-consts.h \
+  /usr/include/aarch64-linux-gnu/bits/siginfo-consts-arch.h \
+  /usr/include/aarch64-linux-gnu/bits/types/sigval_t.h \
+  /usr/include/aarch64-linux-gnu/bits/types/sigevent_t.h \
+  /usr/include/aarch64-linux-gnu/bits/sigevent-consts.h \
+  /usr/include/aarch64-linux-gnu/bits/sigaction.h \
+  /usr/include/aarch64-linux-gnu/bits/sigcontext.h \
+  /usr/lib/linux/uapi/arm64/asm/sigcontext.h \
+  /usr/include/linux/types.h \
+  /usr/lib/linux/uapi/arm64/asm/types.h \
+  /usr/include/asm-generic/types.h \
+  /usr/include/asm-generic/int-ll64.h \
+  /usr/lib/linux/uapi/arm64/asm/bitsperlong.h \
+  /usr/include/asm-generic/bitsperlong.h \
+  /usr/include/linux/posix_types.h \
+  /usr/include/linux/stddef.h \
+  /usr/lib/linux/uapi/arm64/asm/posix_types.h \
+  /usr/include/asm-generic/posix_types.h \
+  /usr/lib/linux/uapi/arm64/asm/sve_context.h \
+  /usr/include/aarch64-linux-gnu/bits/types/stack_t.h \
+  /usr/include/aarch64-linux-gnu/sys/ucontext.h \
+  /usr/include/aarch64-linux-gnu/sys/procfs.h \
+  /usr/include/aarch64-linux-gnu/sys/time.h \
+  /usr/include/aarch64-linux-gnu/sys/user.h \
+  /usr/include/aarch64-linux-gnu/bits/procfs.h \
+  /usr/include/aarch64-linux-gnu/bits/procfs-id.h \
+  /usr/include/aarch64-linux-gnu/bits/procfs-prregset.h \
+  /usr/include/aarch64-linux-gnu/bits/procfs-extra.h \
+  /usr/include/aarch64-linux-gnu/bits/sigstack.h \
+  /usr/include/aarch64-linux-gnu/bits/sigstksz.h \
+  /usr/include/unistd.h \
+  /usr/include/aarch64-linux-gnu/bits/posix_opt.h \
+  /usr/include/aarch64-linux-gnu/bits/environments.h \
+  /usr/include/aarch64-linux-gnu/bits/confname.h \
+  /usr/include/aarch64-linux-gnu/bits/getopt_posix.h \
+  /usr/include/aarch64-linux-gnu/bits/getopt_core.h \
+  /usr/include/aarch64-linux-gnu/bits/unistd_ext.h \
+  /usr/include/linux/close_range.h \
+  /usr/include/aarch64-linux-gnu/bits/ss_flags.h \
+  /usr/include/aarch64-linux-gnu/bits/types/struct_sigstack.h \
+  /usr/include/aarch64-linux-gnu/bits/sigthread.h \
+  /usr/include/aarch64-linux-gnu/bits/signal_ext.h
 
 CMakeFiles/Stabilizer.dir/src/Transform.cpp.o: /home/pi/thesis_code/all_in_one_stabilizer/src/Transform.cpp \
   /usr/include/stdc-predef.h \
@@ -1378,6 +1428,48 @@ CMakeFiles/Stabilizer.dir/src/main.cpp.o: /home/pi/thesis_code/all_in_one_stabil
 
 /home/pi/thesis_code/all_in_one_stabilizer/src/Transform.cpp:
 
+/usr/include/aarch64-linux-gnu/bits/ss_flags.h:
+
+/usr/include/linux/close_range.h:
+
+/usr/include/aarch64-linux-gnu/bits/unistd_ext.h:
+
+/usr/include/aarch64-linux-gnu/bits/getopt_posix.h:
+
+/usr/include/aarch64-linux-gnu/bits/posix_opt.h:
+
+/usr/include/unistd.h:
+
+/usr/include/aarch64-linux-gnu/bits/procfs-prregset.h:
+
+/usr/include/aarch64-linux-gnu/bits/procfs-id.h:
+
+/usr/include/aarch64-linux-gnu/bits/procfs.h:
+
+/usr/include/aarch64-linux-gnu/sys/user.h:
+
+/usr/lib/linux/uapi/arm64/asm/sve_context.h:
+
+/usr/lib/linux/uapi/arm64/asm/posix_types.h:
+
+/usr/include/linux/posix_types.h:
+
+/usr/include/asm-generic/int-ll64.h:
+
+/usr/lib/linux/uapi/arm64/asm/types.h:
+
+/usr/include/aarch64-linux-gnu/bits/sigcontext.h:
+
+/usr/include/aarch64-linux-gnu/bits/types/sigevent_t.h:
+
+/usr/include/aarch64-linux-gnu/bits/siginfo-arch.h:
+
+/usr/include/aarch64-linux-gnu/bits/types/siginfo_t.h:
+
+/usr/include/aarch64-linux-gnu/bits/signum-arch.h:
+
+/usr/include/c++/12/csignal:
+
 /usr/include/c++/12/bits/fstream.tcc:
 
 /usr/include/aarch64-linux-gnu/c++/12/bits/c++io.h:
@@ -1392,6 +1484,8 @@ CMakeFiles/Stabilizer.dir/src/main.cpp.o: /home/pi/thesis_code/all_in_one_stabil
 
 /usr/include/c++/12/bits/stl_queue.h:
 
+/usr/include/aarch64-linux-gnu/bits/signum-generic.h:
+
 /usr/include/c++/12/bits/stl_deque.h:
 
 /usr/include/c++/12/queue:
@@ -1401,6 +1495,8 @@ CMakeFiles/Stabilizer.dir/src/main.cpp.o: /home/pi/thesis_code/all_in_one_stabil
 /usr/include/opencv4/opencv2/video/background_segm.hpp:
 
 /usr/include/c++/12/list:
+
+/usr/include/aarch64-linux-gnu/bits/sigstksz.h:
 
 /usr/include/opencv4/opencv2/stitching/detail/matchers.hpp:
 
@@ -1414,6 +1510,8 @@ CMakeFiles/Stabilizer.dir/src/main.cpp.o: /home/pi/thesis_code/all_in_one_stabil
 
 /usr/include/opencv4/opencv2/ml/ml.inl.hpp:
 
+/usr/include/aarch64-linux-gnu/bits/types/sigval_t.h:
+
 /usr/include/opencv4/opencv2/ml.hpp:
 
 /usr/include/opencv4/opencv2/imgproc/segmentation.hpp:
@@ -1425,6 +1523,8 @@ CMakeFiles/Stabilizer.dir/src/main.cpp.o: /home/pi/thesis_code/all_in_one_stabil
 /usr/include/opencv4/opencv2/flann/sampling.h:
 
 /usr/include/opencv4/opencv2/flann/timer.h:
+
+/usr/include/aarch64-linux-gnu/bits/types/struct_sigstack.h:
 
 /usr/include/c++/12/bits/locale_facets_nonio.tcc:
 
@@ -1440,6 +1540,8 @@ CMakeFiles/Stabilizer.dir/src/main.cpp.o: /home/pi/thesis_code/all_in_one_stabil
 
 /usr/include/opencv4/opencv2/flann/composite_index.h:
 
+/usr/include/aarch64-linux-gnu/bits/getopt_core.h:
+
 /usr/include/opencv4/opencv2/flann/logger.h:
 
 /usr/include/opencv4/opencv2/flann/kdtree_single_index.h:
@@ -1449,6 +1551,8 @@ CMakeFiles/Stabilizer.dir/src/main.cpp.o: /home/pi/thesis_code/all_in_one_stabil
 /usr/include/opencv4/opencv2/video.hpp:
 
 /usr/include/c++/12/stdlib.h:
+
+/usr/include/aarch64-linux-gnu/bits/sigthread.h:
 
 /usr/include/opencv4/opencv2/flann/allocator.h:
 
@@ -1471,6 +1575,8 @@ CMakeFiles/Stabilizer.dir/src/main.cpp.o: /home/pi/thesis_code/all_in_one_stabil
 /usr/include/c++/12/bits/stl_multiset.h:
 
 /usr/include/opencv4/opencv2/flann/result_set.h:
+
+/usr/lib/linux/uapi/arm64/asm/sigcontext.h:
 
 /usr/include/opencv4/opencv2/flann/nn_index.h:
 
@@ -1548,7 +1654,11 @@ CMakeFiles/Stabilizer.dir/src/main.cpp.o: /home/pi/thesis_code/all_in_one_stabil
 
 /usr/include/c++/12/bits/basic_ios.tcc:
 
+/usr/include/aarch64-linux-gnu/bits/siginfo-consts-arch.h:
+
 /usr/include/c++/12/bits/locale_facets.tcc:
+
+/usr/include/aarch64-linux-gnu/bits/types/sig_atomic_t.h:
 
 /usr/include/aarch64-linux-gnu/c++/12/bits/ctype_inline.h:
 
@@ -1570,6 +1680,8 @@ CMakeFiles/Stabilizer.dir/src/main.cpp.o: /home/pi/thesis_code/all_in_one_stabil
 
 /usr/include/c++/12/stdexcept:
 
+/usr/include/signal.h:
+
 /usr/include/opencv4/opencv2/core/cuda.inl.hpp:
 
 /usr/include/strings.h:
@@ -1577,6 +1689,8 @@ CMakeFiles/Stabilizer.dir/src/main.cpp.o: /home/pi/thesis_code/all_in_one_stabil
 /usr/include/c++/12/string:
 
 /usr/include/c++/12/ext/atomicity.h:
+
+/usr/include/aarch64-linux-gnu/bits/sigstack.h:
 
 /usr/include/opencv4/opencv2/stitching/warpers.hpp:
 
@@ -1616,6 +1730,8 @@ CMakeFiles/Stabilizer.dir/src/main.cpp.o: /home/pi/thesis_code/all_in_one_stabil
 
 /usr/include/aarch64-linux-gnu/bits/types/sigset_t.h:
 
+/usr/include/linux/stddef.h:
+
 /home/pi/thesis_code/all_in_one_stabilizer/src/Stabilizer.cpp:
 
 /usr/include/c++/12/bits/cxxabi_init_exception.h:
@@ -1633,6 +1749,8 @@ CMakeFiles/Stabilizer.dir/src/main.cpp.o: /home/pi/thesis_code/all_in_one_stabil
 /usr/include/c++/12/bits/stl_set.h:
 
 /usr/include/c++/12/bits/functexcept.h:
+
+/usr/include/aarch64-linux-gnu/bits/sigaction.h:
 
 /usr/include/opencv4/opencv2/core/cvstd.hpp:
 
@@ -1688,6 +1806,8 @@ CMakeFiles/Stabilizer.dir/src/main.cpp.o: /home/pi/thesis_code/all_in_one_stabil
 
 /usr/include/c++/12/bits/stl_tempbuf.h:
 
+/usr/include/asm-generic/posix_types.h:
+
 /usr/include/c++/12/bits/stl_heap.h:
 
 /usr/include/c++/12/bits/algorithmfwd.h:
@@ -1725,6 +1845,8 @@ CMakeFiles/Stabilizer.dir/src/main.cpp.o: /home/pi/thesis_code/all_in_one_stabil
 /usr/include/c++/12/bits/exception_defines.h:
 
 /usr/include/opencv4/opencv2/core/cvstd_wrapper.hpp:
+
+/usr/include/aarch64-linux-gnu/bits/types/__sigval_t.h:
 
 /usr/include/c++/12/bits/streambuf.tcc:
 
@@ -1804,6 +1926,8 @@ CMakeFiles/Stabilizer.dir/src/main.cpp.o: /home/pi/thesis_code/all_in_one_stabil
 
 /usr/include/aarch64-linux-gnu/c++/12/bits/cpu_defines.h:
 
+/usr/include/aarch64-linux-gnu/sys/time.h:
+
 /usr/include/limits.h:
 
 /usr/include/c++/12/bits/alloc_traits.h:
@@ -1824,6 +1948,8 @@ CMakeFiles/Stabilizer.dir/src/main.cpp.o: /home/pi/thesis_code/all_in_one_stabil
 
 /usr/include/stdint.h:
 
+/usr/include/aarch64-linux-gnu/bits/siginfo-consts.h:
+
 /usr/include/linux/limits.h:
 
 /usr/include/aarch64-linux-gnu/bits/types/cookie_io_functions_t.h:
@@ -1831,6 +1957,8 @@ CMakeFiles/Stabilizer.dir/src/main.cpp.o: /home/pi/thesis_code/all_in_one_stabil
 /usr/include/aarch64-linux-gnu/bits/types/clockid_t.h:
 
 /usr/include/c++/12/complex:
+
+/usr/include/aarch64-linux-gnu/bits/sigevent-consts.h:
 
 /usr/include/aarch64-linux-gnu/gnu/stubs-lp64.h:
 
@@ -1872,6 +2000,10 @@ CMakeFiles/Stabilizer.dir/src/main.cpp.o: /home/pi/thesis_code/all_in_one_stabil
 
 /usr/include/c++/12/bits/stl_vector.h:
 
+/usr/include/asm-generic/bitsperlong.h:
+
+/usr/include/asm-generic/types.h:
+
 /usr/include/c++/12/deque:
 
 /usr/include/c++/12/ext/type_traits.h:
@@ -1889,6 +2021,10 @@ CMakeFiles/Stabilizer.dir/src/main.cpp.o: /home/pi/thesis_code/all_in_one_stabil
 /usr/include/c++/12/bits/hash_bytes.h:
 
 /usr/include/aarch64-linux-gnu/bits/stdint-uintn.h:
+
+/usr/include/aarch64-linux-gnu/sys/procfs.h:
+
+/usr/include/aarch64-linux-gnu/bits/types/stack_t.h:
 
 /usr/include/c++/12/array:
 
@@ -1924,6 +2060,8 @@ CMakeFiles/Stabilizer.dir/src/main.cpp.o: /home/pi/thesis_code/all_in_one_stabil
 
 /usr/include/c++/12/bits/stl_iterator_base_types.h:
 
+/usr/include/aarch64-linux-gnu/bits/environments.h:
+
 /usr/include/opencv4/opencv2/core/fast_math.hpp:
 
 /usr/include/c++/12/bits/invoke.h:
@@ -1931,6 +2069,8 @@ CMakeFiles/Stabilizer.dir/src/main.cpp.o: /home/pi/thesis_code/all_in_one_stabil
 /usr/include/c++/12/bits/utility.h:
 
 /usr/include/c++/12/bits/stl_iterator.h:
+
+/usr/include/aarch64-linux-gnu/bits/signal_ext.h:
 
 /usr/include/aarch64-linux-gnu/bits/types/__FILE.h:
 
@@ -1979,6 +2119,8 @@ CMakeFiles/Stabilizer.dir/src/main.cpp.o: /home/pi/thesis_code/all_in_one_stabil
 /usr/include/opencv4/opencv2/stitching/detail/blenders.hpp:
 
 /usr/include/c++/12/ext/alloc_traits.h:
+
+/usr/include/linux/types.h:
 
 /usr/include/c++/12/cstdio:
 
@@ -2050,9 +2192,13 @@ CMakeFiles/Stabilizer.dir/src/main.cpp.o: /home/pi/thesis_code/all_in_one_stabil
 
 /usr/include/c++/12/bits/stl_raw_storage_iter.h:
 
+/usr/include/aarch64-linux-gnu/sys/ucontext.h:
+
 /usr/include/c++/12/bit:
 
 /usr/include/c++/12/bits/shared_ptr_base.h:
+
+/usr/lib/linux/uapi/arm64/asm/bitsperlong.h:
 
 /usr/include/c++/12/math.h:
 
@@ -2086,6 +2232,8 @@ CMakeFiles/Stabilizer.dir/src/main.cpp.o: /home/pi/thesis_code/all_in_one_stabil
 
 /usr/include/sched.h:
 
+/usr/include/aarch64-linux-gnu/bits/procfs-extra.h:
+
 /usr/include/aarch64-linux-gnu/bits/atomic_wide_counter.h:
 
 /usr/include/c++/12/backward/auto_ptr.h:
@@ -2117,6 +2265,8 @@ CMakeFiles/Stabilizer.dir/src/main.cpp.o: /home/pi/thesis_code/all_in_one_stabil
 /usr/include/aarch64-linux-gnu/sys/single_threaded.h:
 
 /usr/include/c++/12/exception:
+
+/usr/include/aarch64-linux-gnu/bits/confname.h:
 
 /usr/include/c++/12/bits/allocated_ptr.h:
 

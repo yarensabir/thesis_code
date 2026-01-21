@@ -7,11 +7,22 @@
 #include <fstream>
 #include <vector>
 #include <cmath>
+#include <csignal>
+#include <string>
 
 using namespace cv;
 using namespace std;
 
-// ... (MotionKalman struct'ı aynı kalacak, buraya tekrar yazmadım yer kaplamasın diye) ...
+// Global durdurma bayrağı
+volatile bool stop_flag = false;
+
+// Ctrl+C (SIGINT) sinyalini yakalayan fonksiyon
+void signalHandler(int signum) {
+    cout << "\n\n>>> DURDURMA SINYALI ALINDI (CTRL+C) <<<" << endl;
+    cout << "Video dosyasi kapatiliyor, lutfen bekleyin..." << endl;
+    stop_flag = true; // Döngüyü kıracak bayrağı aktif et
+}
+
 struct MotionKalman {
     KalmanFilter KF;
     Mat state, meas;
@@ -35,8 +46,225 @@ struct MotionKalman {
 // ---------------------------------------------------------
 // 1. GERÇEK ZAMANLI FONKSİYON
 // ---------------------------------------------------------
-// GÜNCELLEME: 'logName' parametresi eklendi
-void runRealTimeStabilization(RealTimeMethod method, string outputName, string logName) {
+void runRealTimeStabilization(int method, string outputPath, string csvPath, int recordMode) {
+    // -----------------------------------------------------------------------
+    // 1. KAMERA AYARLARI (Sizin GStreamer Pipeline'ınız)
+    // -----------------------------------------------------------------------
+    // 1. Sinyal Yakalayıcıyı Aktif Et
+    signal(SIGINT, signalHandler);
+    stop_flag = false; // Her çalıştırışta sıfırla
+    // 2. Kamera Ayarları
+    string pipeline = "libcamerasrc ! video/x-raw, width=640, height=480, framerate=30/1 ! videoconvert ! appsink";
+    VideoCapture cap(pipeline, CAP_GSTREAMER);
+
+    if(!cap.isOpened()) {
+        cerr << "Hata: Kamera acilamadi!" << endl;
+        return;
+    }
+
+    // GStreamer kullandığımız için boyutları manuel sabitliyoruz (Pipeline ile uyumlu)
+    int w = 640; 
+    int h = 480;
+    double fps = 30.0;
+
+    // -----------------------------------------------------------------------
+    // 2. VIDEO WRITER AYARLARI (Seçilen Mod'a Göre)
+    // -----------------------------------------------------------------------
+    VideoWriter writerStandard;   // Mod 0 ve 1 için (Stabilize Görüntü)
+    VideoWriter writerRaw;        // Mod 1 için (Ham Görüntü)
+    VideoWriter writerSideBySide; // Mod 2 için (Yan Yana Görüntü)
+    
+    // Codec Seçimi: Raspberry Pi'de genelde MJPG veya mp4v verimlidir
+    int codec = VideoWriter::fourcc('M', 'J', 'P', 'G');
+
+    if (recordMode == 0) { 
+        // Mod 0: Standart (Sadece Sonuç)
+        writerStandard.open(outputPath, codec, fps, Size(w, h), true);
+        cout << "Kayit Modu: Standart (Sadece Stabilize)" << endl;
+    } 
+    else if (recordMode == 1) { 
+        // Mod 1: Ayrı Dosyalar (Ham + Sonuç)
+        writerStandard.open(outputPath, codec, fps, Size(w, h), true);
+        
+        // Raw dosya ismini otomatik üret (örn: result.mp4 -> result_RAW.avi)
+        string rawOut = outputPath.substr(0, outputPath.find_last_of('.')) + "_RAW.avi";
+        writerRaw.open(rawOut, codec, fps, Size(w, h), true);
+        cout << "Kayit Modu: Ayri Dosyalar (" << rawOut << " + Stabilize)" << endl;
+    } 
+    else if (recordMode == 2) { 
+        // Mod 2: Yan Yana (Side-by-Side)
+        // Genişlik 2 katı (w * 2) çünkü iki görüntü yan yana gelecek
+        writerSideBySide.open(outputPath, codec, fps, Size(w * 2, h), true);
+        cout << "Kayit Modu: Yan Yana (Side-by-Side)" << endl;
+    }
+
+    // -----------------------------------------------------------------------
+    // 3. DEĞİŞKENLER VE HAZIRLIK
+    // -----------------------------------------------------------------------
+    // CSV Dosyası
+    ofstream csvFile(csvPath);
+    csvFile << "frame,dx,dy,da,raw_x,raw_y,smooth_x,smooth_y" << endl;
+
+    Mat curr, currGray, prev, prevGray;
+    
+    // İlk kareyi oku
+    cap >> prev;
+    if(prev.empty()) {
+        cerr << "Hata: Ilk kare okunamadi!" << endl;
+        return;
+    }
+    cvtColor(prev, prevGray, COLOR_BGR2GRAY);
+
+    // Yörünge Değişkenleri
+    double x = 0, y = 0, a = 0;
+    double smooth_x = 0, smooth_y = 0, smooth_a = 0;
+
+    // Kalman Filtresi Nesnesi (Struct dosyanın başında tanımlı olduğu için burada çağırıyoruz)
+    MotionKalman kf; 
+
+    int frame_counter = 0;
+
+    cout << "Stabilizasyon basladi. Durdurmak icin CTRL+C..." << endl;
+
+    // -----------------------------------------------------------------------
+    // 4. ANA DÖNGÜ
+    // -----------------------------------------------------------------------
+    while(true) {
+        cap >> curr;
+        if(curr.empty()) break;
+        
+        cvtColor(curr, currGray, COLOR_BGR2GRAY);
+
+        // --- Optik Akış (Optical Flow) ---
+        vector<Point2f> prevPts, currPts;
+        goodFeaturesToTrack(prevGray, prevPts, 200, 0.01, 30);
+        
+        bool motionDetected = false;
+        double dx = 0, dy = 0, da = 0;
+
+        if(prevPts.size() > 0) {
+            vector<uchar> status;
+            vector<float> err;
+            calcOpticalFlowPyrLK(prevGray, currGray, prevPts, currPts, status, err);
+            
+            // Hatalı noktaları ele
+            vector<Point2f> pA, pB;
+            for(size_t i=0; i < status.size(); i++) {
+                if(status[i]) {
+                    pA.push_back(prevPts[i]);
+                    pB.push_back(currPts[i]);
+                }
+            }
+
+            // Dönüşüm Matrisi Bul (Affine)
+            if(pA.size() > 10) {
+                Mat T = estimateAffinePartial2D(pA, pB);
+                if(!T.empty()) {
+                    dx = T.at<double>(0, 2);
+                    dy = T.at<double>(1, 2);
+                    da = atan2(T.at<double>(1, 0), T.at<double>(0, 0));
+                    motionDetected = true;
+                }
+            }
+        }
+
+        // Eğer hareket algılandıysa stabilizasyon yap
+        if (motionDetected) {
+            // 1. Ham Yörüngeyi Güncelle
+            x += dx; 
+            y += dy; 
+            a += da;
+
+            // 2. Algoritma Seçimi (Kalman veya Sliding Window)
+            if (method == RT_KALMAN_FILTER) {
+                // Kalman Update (Senin Struct'ın)
+                TransformParam rawP(dx, dy, da);
+                TransformParam smoothP = kf.update(rawP);
+                
+                smooth_x += smoothP.dx;
+                smooth_y += smoothP.dy;
+                smooth_a += smoothP.da;
+            } 
+            else { 
+                // Basit Sliding Window (Low-Pass Filter)
+                smooth_x = smooth_x * 0.9 + x * 0.1;
+                smooth_y = smooth_y * 0.9 + y * 0.1;
+                smooth_a = smooth_a * 0.9 + a * 0.1;
+            }
+
+            // 3. Düzeltme Farkını Hesapla
+            double diff_x = smooth_x - x;
+            double diff_y = smooth_y - y;
+            double diff_a = smooth_a - a;
+
+            // Görüntüyü tersine warp etmek için gereken dönüşüm
+            double target_dx = dx + diff_x;
+            double target_dy = dy + diff_y;
+            double target_da = da + diff_a;
+
+            // Warp Matrisi Oluştur
+            Mat T_new(2, 3, CV_64F);
+            T_new.at<double>(0, 0) = cos(target_da); 
+            T_new.at<double>(0, 1) = -sin(target_da);
+            T_new.at<double>(1, 0) = sin(target_da); 
+            T_new.at<double>(1, 1) = cos(target_da);
+            T_new.at<double>(0, 2) = target_dx; 
+            T_new.at<double>(1, 2) = target_dy;
+
+            Mat stabilizedFrame;
+            warpAffine(curr, stabilizedFrame, T_new, curr.size());
+
+            // CSV Kayıt
+            csvFile << frame_counter << "," << dx << "," << dy << "," << da << "," 
+                    << x << "," << y << "," << smooth_x << "," << smooth_y << endl;
+
+            // ---------------------------------------------------------------
+            // KAYIT MANTIĞI (Burada yeni eklenen kısım devreye giriyor)
+            // ---------------------------------------------------------------
+            if (recordMode == 0) {
+                // Sadece Stabilize
+                if(!stabilizedFrame.empty()) writerStandard.write(stabilizedFrame);
+            }
+            else if (recordMode == 1) {
+                // Ayrı Ayrı
+                writerRaw.write(curr);
+                if(!stabilizedFrame.empty()) writerStandard.write(stabilizedFrame);
+            }
+            else if (recordMode == 2) {
+                // Yan Yana Birleştirme
+                if(!stabilizedFrame.empty()) {
+                    Mat combined;
+                    hconcat(curr, stabilizedFrame, combined);
+                    writerSideBySide.write(combined);
+                }
+            }
+
+        } else {
+            // Hareket yoksa veya hata varsa orjinal kareyi kaydet (Akış kopmasın)
+             if (recordMode == 0) writerStandard.write(curr);
+             else if (recordMode == 1) { writerRaw.write(curr); writerStandard.write(curr); }
+             else if (recordMode == 2) { Mat combined; hconcat(curr, curr, combined); writerSideBySide.write(combined); }
+        }
+
+        // Sonraki döngü için hazırla
+        curr.copyTo(prev);
+        currGray.copyTo(prevGray);
+        frame_counter++;
+        
+        if(frame_counter % 30 == 0) cout << "Kare: " << frame_counter << "\r" << flush;
+    }
+
+    // --- TEMİZLİK ---
+    cap.release();
+    csvFile.close();
+    if(writerStandard.isOpened()) writerStandard.release();
+    if(writerRaw.isOpened()) writerRaw.release();
+    if(writerSideBySide.isOpened()) writerSideBySide.release();
+    
+    cout << "\nStabilizasyon bitti." << endl;
+}
+
+void runRealTimeStabilization_old(RealTimeMethod method, string outputName, string logName) {
     cout << "[Real-Time] Pi Kamera GStreamer ile aciliyor..." << endl;
     
     // ... (Pipeline ve VideoCapture aynı) ...
@@ -50,7 +278,7 @@ void runRealTimeStabilization(RealTimeMethod method, string outputName, string l
 
     VideoWriter writer(outputName, VideoWriter::fourcc('m','p','4','v'), 30, Size(w, h));
     
-    // GÜNCELLEME: Dosya ismi parametreden alınıyor (c_str() gerekli çünkü fopen C fonksiyonu)
+    //  Dosya ismi parametreden alınıyor (c_str() gerekli çünkü fopen C fonksiyonu)
     FILE* fp = fopen(logName.c_str(), "w");
     // Başlığa FPS ve Time eklendi
     fprintf(fp, "frame,raw_x,smooth_x,fps,process_time_ms\n");
@@ -127,7 +355,6 @@ void runRealTimeStabilization(RealTimeMethod method, string outputName, string l
 // ---------------------------------------------------------
 // 2. ÇEVRİMDIŞI FONKSİYON
 // ---------------------------------------------------------
-// GÜNCELLEME: 'logName' parametresi eklendi
 void runOfflineStabilization(string videoPath, OfflineMethod method, string outputName, string logName) {
     cout << "[Offline] Analiz yapiliyor..." << endl;
     VideoCapture cap(videoPath);
