@@ -17,7 +17,8 @@ int main() {
     string videoPath = "/home/pi/data/source/TEST_1.mp4"; 
     
     // Çıktı Video İsimleri
-    string outRT = "Result_RealTime.avi";
+    //string outRT = "/home/pi/data/result/Result_RealTime.avi";
+    string outRT = "/home/pi/data/result/Result_RealTime.mp4";
     string outOffline = "/home/pi/data/result/Result_TEST_1_Gaussian.mp4";
 
     // Analiz Veri Dosyası (CSV) İsimleri 

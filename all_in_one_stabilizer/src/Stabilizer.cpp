@@ -75,9 +75,15 @@ void runRealTimeStabilization(int method, string outputPath, string csvPath, int
     VideoWriter writerSideBySide; // Mod 2 için (Yan Yana Görüntü)
     
     // Codec Seçimi: Raspberry Pi'de genelde MJPG veya mp4v verimlidir
-    int codec = VideoWriter::fourcc('M', 'J', 'P', 'G');
+    //int codec = VideoWriter::fourcc('X', 'V', 'I', 'D');
+    //int codec = 0;
+    int codec = VideoWriter::fourcc('M', 'P', '4', 'V');
 
     if (recordMode == 0) { 
+        if(!writerStandard.isOpened()) {
+            cerr << "HATA: writerStandard acilamadi! Codec: " << codec << " Yol: " << outputPath << endl;
+            return;
+        }
         // Mod 0: Standart (Sadece Sonuç)
         writerStandard.open(outputPath, codec, fps, Size(w, h), true);
         cout << "Kayit Modu: Standart (Sadece Stabilize)" << endl;
@@ -129,7 +135,8 @@ void runRealTimeStabilization(int method, string outputPath, string csvPath, int
     // -----------------------------------------------------------------------
     // 4. ANA DÖNGÜ
     // -----------------------------------------------------------------------
-    while(true) {
+// 4. ANA DÖNGÜ
+    while(!stop_flag) {
         cap >> curr;
         if(curr.empty()) break;
         
@@ -147,7 +154,6 @@ void runRealTimeStabilization(int method, string outputPath, string csvPath, int
             vector<float> err;
             calcOpticalFlowPyrLK(prevGray, currGray, prevPts, currPts, status, err);
             
-            // Hatalı noktaları ele
             vector<Point2f> pA, pB;
             for(size_t i=0; i < status.size(); i++) {
                 if(status[i]) {
@@ -156,7 +162,6 @@ void runRealTimeStabilization(int method, string outputPath, string csvPath, int
                 }
             }
 
-            // Dönüşüm Matrisi Bul (Affine)
             if(pA.size() > 10) {
                 Mat T = estimateAffinePartial2D(pA, pB);
                 if(!T.empty()) {
@@ -168,42 +173,33 @@ void runRealTimeStabilization(int method, string outputPath, string csvPath, int
             }
         }
 
-        // Eğer hareket algılandıysa stabilizasyon yap
         if (motionDetected) {
-            // 1. Ham Yörüngeyi Güncelle
             x += dx; 
             y += dy; 
             a += da;
 
-            // 2. Algoritma Seçimi (Kalman veya Sliding Window)
             if (method == RT_KALMAN_FILTER) {
-                // Kalman Update (Senin Struct'ın)
                 TransformParam rawP(dx, dy, da);
                 TransformParam smoothP = kf.update(rawP);
-                
                 smooth_x += smoothP.dx;
                 smooth_y += smoothP.dy;
                 smooth_a += smoothP.da;
             } 
             else { 
-                // Basit Sliding Window (Low-Pass Filter)
                 smooth_x = smooth_x * 0.9 + x * 0.1;
                 smooth_y = smooth_y * 0.9 + y * 0.1;
                 smooth_a = smooth_a * 0.9 + a * 0.1;
             }
 
-            // 3. Düzeltme Farkını Hesapla
             double diff_x = smooth_x - x;
             double diff_y = smooth_y - y;
             double diff_a = smooth_a - a;
 
-            // Görüntüyü tersine warp etmek için gereken dönüşüm
             double target_dx = dx + diff_x;
             double target_dy = dy + diff_y;
             double target_da = da + diff_a;
 
-            // Warp Matrisi Oluştur
-            Mat T_new(2, 3, CV_64F);
+            Mat T_new = Mat::eye(2, 3, CV_64F);
             T_new.at<double>(0, 0) = cos(target_da); 
             T_new.at<double>(0, 1) = -sin(target_da);
             T_new.at<double>(1, 0) = sin(target_da); 
@@ -214,64 +210,79 @@ void runRealTimeStabilization(int method, string outputPath, string csvPath, int
             Mat stabilizedFrame;
             warpAffine(curr, stabilizedFrame, T_new, curr.size());
 
-            // CSV Kayıt
             csvFile << frame_counter << "," << dx << "," << dy << "," << da << "," 
                     << x << "," << y << "," << smooth_x << "," << smooth_y << endl;
 
-            // ---------------------------------------------------------------
-            // KAYIT MANTIĞI (Burada yeni eklenen kısım devreye giriyor)
-            // ---------------------------------------------------------------
+            // --- KAYIT MANTIĞI DÜZELTİLDİ ---
             if (recordMode == 0) {
-                // Sadece Stabilize
-                if(!stabilizedFrame.empty()) writerStandard.write(stabilizedFrame);
+                if (writerStandard.isOpened()) writerStandard.write(stabilizedFrame);
+                else cerr << "Hata: writerStandard acilamadi!" << endl;
             }
             else if (recordMode == 1) {
-                // Ayrı Ayrı
-                writerRaw.write(curr);
-                if(!stabilizedFrame.empty()) writerStandard.write(stabilizedFrame);
+                if (writerRaw.isOpened()) writerRaw.write(curr);
+                else cerr << "Hata: writerRaw acilamadi!" << endl;
+
+                if (writerStandard.isOpened()) writerStandard.write(stabilizedFrame);
+                else cerr << "Hata: writerStandard acilamadi!" << endl;
             }
             else if (recordMode == 2) {
-                // Yan Yana Birleştirme
-                if(!stabilizedFrame.empty()) {
+                if (writerSideBySide.isOpened()) {
                     Mat combined;
                     hconcat(curr, stabilizedFrame, combined);
                     writerSideBySide.write(combined);
                 }
+                else cerr << "Hata: writerSideBySide acilamadi!" << endl;
             }
-
-        } else {
-            // Hareket yoksa veya hata varsa orjinal kareyi kaydet (Akış kopmasın)
-             if (recordMode == 0) writerStandard.write(curr);
-             else if (recordMode == 1) { writerRaw.write(curr); writerStandard.write(curr); }
-             else if (recordMode == 2) { Mat combined; hconcat(curr, curr, combined); writerSideBySide.write(combined); }
+        } 
+        else {
+            // Hareket yoksa orjinal kareleri yaz
+            if (recordMode == 0 && writerStandard.isOpened()) writerStandard.write(curr);
+            else if (recordMode == 1) {
+                if(writerRaw.isOpened()) writerRaw.write(curr);
+                if(writerStandard.isOpened()) writerStandard.write(curr);
+            }
+            else if (recordMode == 2 && writerSideBySide.isOpened()) {
+                Mat combined;
+                hconcat(curr, curr, combined);
+                writerSideBySide.write(combined);
+            }
         }
 
-        // Sonraki döngü için hazırla
         curr.copyTo(prev);
         currGray.copyTo(prevGray);
         frame_counter++;
         
         if(frame_counter % 30 == 0) cout << "Kare: " << frame_counter << "\r" << flush;
-    }
+    } // while döngüsünün sonu
 
-    // --- TEMİZLİK ---
-    cap.release();
-    csvFile.close();
-    if(writerStandard.isOpened()) writerStandard.release();
+// --- TEMİZLİK ---
+    // Önce yazıcıları kapat ki buffer'daki veriler diske yazılsın
+    if(writerStandard.isOpened()) {
+        cout << "Standard video kaydediliyor..." << endl;
+        writerStandard.release();
+    }
     if(writerRaw.isOpened()) writerRaw.release();
     if(writerSideBySide.isOpened()) writerSideBySide.release();
     
-    cout << "\nStabilizasyon bitti." << endl;
+    csvFile.close();
+    
+    // En son kamerayı kapat (Takılmaya en meyilli kısım budur)
+    cout << "Kamera kapatiliyor..." << endl;
+    cap.release(); 
+    
+    cout << "\nStabilizasyon bitti. Dosyalar kaydedildi." << endl;
 }
 
 void runRealTimeStabilization_old(RealTimeMethod method, string outputName, string logName) {
     cout << "[Real-Time] Pi Kamera GStreamer ile aciliyor..." << endl;
     
     // ... (Pipeline ve VideoCapture aynı) ...
-    string pipeline = "libcamerasrc ! video/x-raw, width=640, height=480, framerate=30/1 ! videoconvert ! appsink";
+    //string pipeline = "libcamerasrc ! video/x-raw, width=640, height=480, framerate=30/1 ! videoconvert ! appsink";
+    string pipeline = "libcamerasrc ! video/x-raw, width=640, height=480, framerate=30/1 ! videoconvert ! appsink drop=true max-buffers=1";
+    
     VideoCapture cap(pipeline, CAP_GSTREAMER);
     if(!cap.isOpened()) { cerr << "Hata: Kamera acilamadi!" << endl; return; }
-
+    
     Mat curr; cap >> curr;
     if (curr.empty()) return;
     int w = curr.cols; int h = curr.rows;
