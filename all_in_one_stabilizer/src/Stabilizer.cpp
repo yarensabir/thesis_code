@@ -10,6 +10,10 @@
 #include <csignal>
 #include <string>
 
+#include <thread> // std::this_thread::sleep_for için
+#include <chrono> // std::chrono::milliseconds için
+#include <iostream>
+
 using namespace cv;
 using namespace std;
 
@@ -80,13 +84,14 @@ void runRealTimeStabilization(int method, string outputPath, string csvPath, int
     int codec = VideoWriter::fourcc('M', 'P', '4', 'V');
 
     if (recordMode == 0) { 
+        writerStandard.open(outputPath, codec, fps, Size(w, h), true);
+        cout << "Kayit Modu: Standart (Sadece Stabilize)" << endl;
         if(!writerStandard.isOpened()) {
             cerr << "HATA: writerStandard acilamadi! Codec: " << codec << " Yol: " << outputPath << endl;
             return;
         }
         // Mod 0: Standart (Sadece Sonuç)
-        writerStandard.open(outputPath, codec, fps, Size(w, h), true);
-        cout << "Kayit Modu: Standart (Sadece Stabilize)" << endl;
+        
     } 
     else if (recordMode == 1) { 
         // Mod 1: Ayrı Dosyalar (Ham + Sonuç)
@@ -215,8 +220,11 @@ void runRealTimeStabilization(int method, string outputPath, string csvPath, int
 
             // --- KAYIT MANTIĞI DÜZELTİLDİ ---
             if (recordMode == 0) {
-                if (writerStandard.isOpened()) writerStandard.write(stabilizedFrame);
-                else cerr << "Hata: writerStandard acilamadi!" << endl;
+                if (writerStandard.isOpened()) {
+                    writerStandard.write(stabilizedFrame);
+                } else {
+                    cerr << "Uyari: Yazici acik degil, kare yazilamadi!" << endl;
+                }
             }
             else if (recordMode == 1) {
                 if (writerRaw.isOpened()) writerRaw.write(curr);
@@ -254,23 +262,26 @@ void runRealTimeStabilization(int method, string outputPath, string csvPath, int
         
         if(frame_counter % 30 == 0) cout << "Kare: " << frame_counter << "\r" << flush;
     } // while döngüsünün sonu
+    // --- TEMİZLİK ---
+    cout << "\nDosyalar yaziliyor ve kapatiliyor..." << endl;
 
-// --- TEMİZLİK ---
-    // Önce yazıcıları kapat ki buffer'daki veriler diske yazılsın
-    if(writerStandard.isOpened()) {
-        cout << "Standard video kaydediliyor..." << endl;
-        writerStandard.release();
-    }
+    // 1. Önce VideoWriter'ları kapat (Buffer'daki veriler diske yazılır)
+    if(writerStandard.isOpened()) writerStandard.release();
     if(writerRaw.isOpened()) writerRaw.release();
     if(writerSideBySide.isOpened()) writerSideBySide.release();
-    
+
+    // 2. CSV dosyasını kapat
+    csvFile.flush();
     csvFile.close();
-    
-    // En son kamerayı kapat (Takılmaya en meyilli kısım budur)
-    cout << "Kamera kapatiliyor..." << endl;
+
+    // 3. Kamerayı kapatmadan önce kısa bir bekleme (Deadlock önlemek için)
+    cout << "Kamera baglantisi kesiliyor..." << endl;
+    std::this_thread::sleep_for(std::chrono::milliseconds(500)); // #include <thread> ve <chrono> eklemelisin
+
     cap.release(); 
-    
-    cout << "\nStabilizasyon bitti. Dosyalar kaydedildi." << endl;
+
+    cout << "Basariyla tamamlandi. Dosyalar: " << outputPath << endl;
+
 }
 
 void runRealTimeStabilization_old(RealTimeMethod method, string outputName, string logName) {
@@ -278,8 +289,9 @@ void runRealTimeStabilization_old(RealTimeMethod method, string outputName, stri
     
     // ... (Pipeline ve VideoCapture aynı) ...
     //string pipeline = "libcamerasrc ! video/x-raw, width=640, height=480, framerate=30/1 ! videoconvert ! appsink";
+    //string pipeline = "libcamerasrc ! video/x-raw, width=640, height=480, framerate=30/1 ! videoconvert ! appsink drop=true max-buffers=1";
     string pipeline = "libcamerasrc ! video/x-raw, width=640, height=480, framerate=30/1 ! videoconvert ! appsink drop=true max-buffers=1";
-    
+
     VideoCapture cap(pipeline, CAP_GSTREAMER);
     if(!cap.isOpened()) { cerr << "Hata: Kamera acilamadi!" << endl; return; }
     
