@@ -1,5 +1,6 @@
-CMakeFiles/CameraTest.dir/main.cpp.o: /home/pi/CameraCppTest/main.cpp \
- /usr/include/stdc-predef.h /usr/include/opencv4/opencv2/opencv.hpp \
+CMakeFiles/CameraTest.dir/main.cpp.o: \
+ /home/pi/thesis_code/CameraCppTest/main.cpp /usr/include/stdc-predef.h \
+ /usr/include/opencv4/opencv2/opencv.hpp \
  /usr/include/opencv4/opencv2/opencv_modules.hpp \
  /usr/include/opencv4/opencv2/core.hpp \
  /usr/include/opencv4/opencv2/core/cvdef.h \

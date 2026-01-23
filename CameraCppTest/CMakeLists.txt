@@ -9,3 +9,7 @@ add_executable(CameraTest main.cpp)
 
 # Kütüphaneleri bağla (Link)
 target_link_libraries(CameraTest ${OpenCV_LIBS})
+
+# Yeni test dosyası için hedef oluştur
+#add_executable(camera_test test_camera.cpp)
+

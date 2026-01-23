@@ -1,3 +1,3 @@
-/home/pi/CameraCppTest/build/CMakeFiles/CameraTest.dir
-/home/pi/CameraCppTest/build/CMakeFiles/edit_cache.dir
-/home/pi/CameraCppTest/build/CMakeFiles/rebuild_cache.dir
+/home/pi/thesis_code/CameraCppTest/build/CMakeFiles/CameraTest.dir
+/home/pi/thesis_code/CameraCppTest/build/CMakeFiles/edit_cache.dir
+/home/pi/thesis_code/CameraCppTest/build/CMakeFiles/rebuild_cache.dir
