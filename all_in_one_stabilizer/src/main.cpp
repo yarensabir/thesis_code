@@ -17,12 +17,12 @@ int main() {
     string videoPath = "/home/pi/data/source/TEST_1.mp4"; 
     
     // Çıktı Video İsimleri
-    //string outRT = "/home/pi/data/result/Result_RealTime.avi";
-    string outRT = "/home/pi/data/result/Result_RealTime.mp4";
+    string outRT = "/home/pi/data/RT/Result_RealTime_mod0_sta2.avi";
+    //string outRT = "/home/pi/data/result/Result_RealTime.mp4";
     string outOffline = "/home/pi/data/result/Result_TEST_1_Gaussian.mp4";
 
     // Analiz Veri Dosyası (CSV) İsimleri 
-    string csvRT = "/home/pi/data/result_csv/data_realtime.csv";
+    string csvRT = "/home/pi/data/RT/Result_RealTime_mod0_sta2.csv";
     string csvOffline = "/home/pi/data/result_csv/Result_TEST_1_Gaussian.csv";
     // ==========================================
 
@@ -47,7 +47,7 @@ int main() {
         cout << "\n--- Kayit Modu Secimi ---" << endl;
         cout << "0. Standart Kayit (Sadece Stabilize Video)" << endl;
         cout << "1. Ayri Dosyalar (Raw.avi + Result.avi)" << endl;
-        cout << "2. Yan Yana (Side-by-Side Tek Video)" << endl;
+        cout << "2. Yan Yana (Side-by-Side Tek Video, Sol Kare Ham Görüntü - Sağ Kare Stabilize Görüntü)" << endl;
         cout << "Mod: ";
         cin >> recordChoice;
 
