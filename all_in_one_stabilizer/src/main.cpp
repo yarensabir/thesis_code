@@ -13,17 +13,19 @@ int main() {
     // =========================================
     // ---------------- AYARLAR ----------------
 
+    string name_of_files = "test_3_kalman"; 
+
     // Girdi videosu (Offline test için)
     string videoPath = "/home/pi/data/source/TEST_1.mp4"; 
     
     // Çıktı Video İsimleri
-    string outRT = "/home/pi/data/RT/Result_RealTime_mod0_sta2.avi";
+    string outRT = "/home/pi/data/RT/RT_" + name_of_files + ".avi";
     //string outRT = "/home/pi/data/result/Result_RealTime.mp4";
-    string outOffline = "/home/pi/data/result/Result_TEST_1_Gaussian.mp4";
+    string outOffline = "/home/pi/data/OffLine/" + name_of_files + ".mp4" ;
 
     // Analiz Veri Dosyası (CSV) İsimleri 
-    string csvRT = "/home/pi/data/RT/Result_RealTime_mod0_sta2.csv";
-    string csvOffline = "/home/pi/data/result_csv/Result_TEST_1_Gaussian.csv";
+    string csvRT = "/home/pi/data/RT/RT_" + name_of_files + ".csv";
+    string csvOffline = "/home/pi/data/OffLine/" + name_of_files + ".csv";
     // ==========================================
 
 

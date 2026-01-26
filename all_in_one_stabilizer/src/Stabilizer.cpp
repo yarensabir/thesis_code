@@ -50,164 +50,196 @@ struct MotionKalman {
 // ---------------------------------------------------------
 // 1. GERÇEK ZAMANLI FONKSİYON
 // ---------------------------------------------------------
+// Stabilizer.cpp içine
+
+// Stabilizer.cpp içine (Eski fonksiyonu silip bunu yapıştırın)
+
 void runRealTimeStabilization(int method, string outputPath, string csvPath, int recordMode) {
-    // 1. SINYAL YAKALAYICI
+    // --- 1. AYARLAR ---
     signal(SIGINT, signalHandler);
     stop_flag = false;
 
-    // 2. KAMERA AYARLARI (Sizin test kodunuzdaki yapıya göre uyarlandı)
-    // libcamerify kullanıldığı için doğrudan index 0 ve V4L2 kullanıyoruz.
+    cout << "[BILGI] Kamera baslatiliyor (V4L2 Modu)..." << endl;
+
+    // HATAYI ÇÖZEN KISIM BURASI:
+    // GStreamer pipeline string'ini SİLDİK.
+    // Doğrudan index 0 ile açıyoruz çünkü terminalden 'libcamerify' ile başlatıyorsunuz.
     VideoCapture cap(0, CAP_V4L2);
 
     if(!cap.isOpened()) {
-        cerr << "Hata: Kamera acilamadi! (libcamerify ile calistirdiginizdan emin olun)" << endl;
+        cerr << "HATA: Kamera acilamadi! Lutfen baglantilari kontrol edin." << endl;
         return;
     }
 
-    // Kamera parametrelerini donanım seviyesinde zorluyoruz
+    // Kamera donanım ayarlarını zorla
     cap.set(CAP_PROP_FRAME_WIDTH, 640);
     cap.set(CAP_PROP_FRAME_HEIGHT, 480);
     cap.set(CAP_PROP_FPS, 30.0);
 
-    // Isınma süresi (Test kodunuzdaki gibi)
-    cout << "Kamera isiniyor..." << endl;
+    cout << "[BILGI] Kamera acildi. Isinma bekleniyor..." << endl;
+    
+    // Isınma turu (Boş kareleri at)
     Mat dummy;
-    for(int i=0; i<10; i++) cap >> dummy;
+    for(int i=0; i<10; i++) {
+        cap >> dummy;
+        if (dummy.empty()) {
+            cout << "Uyari: Bos kare atlandi." << endl;
+            continue; 
+        }
+    }
 
+    // --- 2. KAYITÇI AYARLARI ---
     int w = 640; 
     int h = 480;
-    double fps = 30.0;
-
-    // 3. VIDEO WRITER AYARLARI
-    VideoWriter writerStandard;
+    VideoWriter writerMain; 
     VideoWriter writerRaw;
-    VideoWriter writerSideBySide;
     
-    // Testinizde XVID çalışmış ancak MJPG işlemciyi daha az yorar ve takılmayı azaltır.
-    // Eğer MJPG hata verirse 'X', 'V', 'I', 'D' olarak değiştirebilirsiniz.
-    int codec = VideoWriter::fourcc('M', 'J', 'P', 'G');
+    // Codec: MP4V (Linux'ta en sorunsuzu)
+    int codec = VideoWriter::fourcc('m', 'p', '4', 'v');
 
-    // Dosya uzantısı kontrolü
-    if (outputPath.find(".avi") == string::npos) {
-        cout << "UYARI: Dosya uzantisi .avi olmalidir!" << endl;
-    }
-
-    if (recordMode == 0) { 
-        writerStandard.open(outputPath, codec, fps, Size(w, h), true);
-    } 
-    else if (recordMode == 1) { 
-        writerStandard.open(outputPath, codec, fps, Size(w, h), true);
+    if (recordMode == 2) writerMain.open(outputPath, codec, 30.0, Size(w * 2, h), true);
+    else writerMain.open(outputPath, codec, 30.0, Size(w, h), true);
+    
+    if (recordMode == 1) {
         string rawOut = outputPath.substr(0, outputPath.find_last_of('.')) + "_RAW.avi";
-        writerRaw.open(rawOut, codec, fps, Size(w, h), true);
-    } 
-    else if (recordMode == 2) { 
-        writerSideBySide.open(outputPath, codec, fps, Size(w * 2, h), true);
+        writerRaw.open(rawOut, codec, 30.0, Size(w, h), true);
     }
 
-    // 4. DEĞİŞKENLER (MotionEstimator Kullanımı - KRİTİK)
-    // Test kodunuz sadece kayıt yapıyor, işlem yapmıyordu. 
-    // Stabilizasyon ağır işlem olduğu için MotionEstimator sınıfını kullanmak ZORUNDAYIZ.
+    // --- 3. STABILIZASYON HAZIRLIĞI ---
     ofstream csvFile(csvPath);
-    csvFile << "frame,dx,dy,da,raw_x,raw_y,smooth_x,smooth_y" << endl;
+    csvFile << "frame,dx,dy,smooth_x,smooth_y" << endl;
 
-    Mat curr;
-    MotionEstimator estimator; // Sizin yazdığınız sınıf
+    Mat curr, currGray, prev, prevGray;
     
-    cap >> curr;
-    if(curr.empty()) return;
-    estimator.initialize(curr); // İlk özellik noktalarını bulur
+    cout << "[BILGI] Ilk kare aliniyor..." << endl;
+    cap >> prev;
+    if(prev.empty()) {
+        cerr << "HATA: Ilk kare alinamadi! Program sonlaniyor." << endl;
+        return;
+    }
+    cvtColor(prev, prevGray, COLOR_BGR2GRAY);
 
-    MotionKalman kf; 
+    // Optik Akış için İlk Noktaları Bul
+    vector<Point2f> prevPts, currPts;
+    goodFeaturesToTrack(prevGray, prevPts, 200, 0.01, 10);
     
+    cout << "[BILGI] Stabilizasyon dongusu basladi. (Durdurmak icin CTRL+C)" << endl;
+
+    // Değişkenler
     double x = 0, y = 0, a = 0;
     double smooth_x = 0, smooth_y = 0, smooth_a = 0;
     
-    int frame_counter = 0;
-    cout << "Stabilizasyon basladi. Durdurmak icin CTRL+C..." << endl;
+    double max_shift = 20.0;     // Savrulma limiti
+    double alpha = 0.15;         // Tepki hızı
+    double noise_threshold = 0.5;// Gürültü filtresi
 
-    // 5. ANA DÖNGÜ
+    int frame_counter = 0;
+
+    // --- 4. ANA DÖNGÜ ---
     while(!stop_flag) {
         cap >> curr;
-        if(curr.empty()) break;
+        if(curr.empty()) {
+            cout << "Hata: Kare okunamadi (Kamera koptu mu?)" << endl;
+            break;
+        }
         
-        // --- HAREKET TAHMİNİ (Optimize Edilmiş) ---
-        // Her karede goodFeaturesToTrack ÇAĞIRMIYORUZ.
-        TransformParam motion = estimator.estimate(curr);
-        
-        double dx = motion.dx;
-        double dy = motion.dy;
-        double da = motion.da;
+        cvtColor(curr, currGray, COLOR_BGR2GRAY);
+
+        // --- OPTİK AKIŞ (HIZLI TAKİP) ---
+        vector<uchar> status;
+        vector<float> err;
+        double dx = 0, dy = 0, da = 0;
+
+        if(prevPts.size() > 0) {
+            calcOpticalFlowPyrLK(prevGray, currGray, prevPts, currPts, status, err);
+            
+            // Noktaları temizle
+            vector<Point2f> pA, pB;
+            for(size_t i=0; i < status.size(); i++) {
+                if(status[i]) {
+                    pA.push_back(prevPts[i]);
+                    pB.push_back(currPts[i]);
+                }
+            }
+
+            // Dönüşüm Matrisi
+            if(pA.size() > 10) {
+                Mat T = estimateAffinePartial2D(pA, pB);
+                if(!T.empty()) {
+                    dx = T.at<double>(0, 2);
+                    dy = T.at<double>(1, 2);
+                    da = atan2(T.at<double>(1, 0), T.at<double>(0, 0));
+                }
+            }
+            prevPts = pB; // Noktaları güncelle
+        }
+
+        // --- NOKTA TAKVİYESİ (Sadece gerektiğinde) ---
+        if(prevPts.size() < 30) {
+            goodFeaturesToTrack(prevGray, prevPts, 200, 0.01, 10);
+        }
+
+        // --- MATEMATİKSEL STABİLİZASYON ---
+        if (abs(dx) < noise_threshold) dx = 0;
+        if (abs(dy) < noise_threshold) dy = 0;
+        if (abs(dx) > 50.0 || abs(dy) > 50.0) { dx = 0; dy = 0; da = 0; }
 
         x += dx; y += dy; a += da;
 
-        // --- YUMUŞATMA ---
-        if (method == RT_KALMAN_FILTER) {
-            TransformParam rawP(dx, dy, da);
-            TransformParam smoothP = kf.update(rawP);
-            smooth_x += smoothP.dx;
-            smooth_y += smoothP.dy;
-            smooth_a += smoothP.da;
-        } 
-        else { 
-            smooth_x += dx * 0.95; // Basit filtre
-            smooth_y += dy * 0.95;
-            smooth_a += da * 0.95;
-        }
+        smooth_x = smooth_x * (1 - alpha) + x * alpha;
+        smooth_y = smooth_y * (1 - alpha) + y * alpha;
+        smooth_a = smooth_a * (1 - alpha) + a * alpha;
 
-        // --- GÖRÜNTÜYÜ DÖNÜŞTÜRME (WARPING) ---
         double diff_x = smooth_x - x;
         double diff_y = smooth_y - y;
         double diff_a = smooth_a - a;
 
-        double target_dx = dx + diff_x;
-        double target_dy = dy + diff_y;
-        double target_da = da + diff_a;
+        // Savrulma Önleyici (Clamp)
+        if (diff_x > max_shift) diff_x = max_shift;
+        if (diff_x < -max_shift) diff_x = -max_shift;
+        if (diff_y > max_shift) diff_y = max_shift;
+        if (diff_y < -max_shift) diff_y = -max_shift;
 
+        // Warp İşlemi
         Mat T_new = Mat::eye(2, 3, CV_64F);
-        T_new.at<double>(0, 0) = cos(target_da); 
-        T_new.at<double>(0, 1) = -sin(target_da);
-        T_new.at<double>(1, 0) = sin(target_da); 
-        T_new.at<double>(1, 1) = cos(target_da);
-        T_new.at<double>(0, 2) = target_dx; 
-        T_new.at<double>(1, 2) = target_dy;
+        T_new.at<double>(0, 0) = cos(diff_a); 
+        T_new.at<double>(0, 1) = -sin(diff_a);
+        T_new.at<double>(1, 0) = sin(diff_a); 
+        T_new.at<double>(1, 1) = cos(diff_a);
+        T_new.at<double>(0, 2) = diff_x; 
+        T_new.at<double>(1, 2) = diff_y;
 
         Mat stabilizedFrame;
         warpAffine(curr, stabilizedFrame, T_new, curr.size());
 
-        // CSV Kaydı
-        csvFile << frame_counter << "," << dx << "," << dy << "," << da << "," 
-                << x << "," << y << "," << smooth_x << "," << smooth_y << endl;
-
-        // --- VİDEO KAYIT ---
-        // Frame'ler boş değilse kaydet
-        if (!curr.empty() && !stabilizedFrame.empty()) {
-             if (recordMode == 0 && writerStandard.isOpened()) {
-                writerStandard.write(stabilizedFrame);
-            }
-            else if (recordMode == 1) {
-                if (writerRaw.isOpened()) writerRaw.write(curr);
-                if (writerStandard.isOpened()) writerStandard.write(stabilizedFrame);
-            }
-            else if (recordMode == 2 && writerSideBySide.isOpened()) {
-                Mat combined;
-                hconcat(curr, stabilizedFrame, combined);
-                writerSideBySide.write(combined);
-            }
+        // Kayıt
+        if (recordMode == 2) {
+            Mat combined;
+            hconcat(curr, stabilizedFrame, combined);
+            writerMain.write(combined);
+        } else {
+            writerMain.write(stabilizedFrame);
+            if(recordMode == 1 && writerRaw.isOpened()) writerRaw.write(curr);
         }
-        
+
+        // CSV Log
+        csvFile << frame_counter << "," << dx << "," << dy << "," << smooth_x << "," << smooth_y << endl;
+
+        curr.copyTo(prev);
+        currGray.copyTo(prevGray);
         frame_counter++;
+        
         if(frame_counter % 30 == 0) cout << "Kare: " << frame_counter << "\r" << flush;
     }
 
-    // Temizlik
-    if(writerStandard.isOpened()) writerStandard.release();
+    // --- KAPANIŞ ---
+    cout << "\nDosyalar kaydediliyor..." << endl;
+    if(writerMain.isOpened()) writerMain.release();
     if(writerRaw.isOpened()) writerRaw.release();
-    if(writerSideBySide.isOpened()) writerSideBySide.release();
     csvFile.close();
     cap.release();
-    cout << "\nIslem Tamamlandi." << endl;
+    cout << "Islem tamamlandi." << endl;
 }
-
 
 void runRealTimeStabilization_old(RealTimeMethod method, string outputName, string logName) {
     cout << "[Real-Time] Pi Kamera GStreamer ile aciliyor..." << endl;
