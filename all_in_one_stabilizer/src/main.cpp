@@ -13,7 +13,7 @@ int main() {
     // =========================================
     // ---------------- AYARLAR ----------------
 
-    string name_of_files = "test_3_kalman"; 
+    string name_of_files = "realtime_test_kalman"; 
 
     // Girdi videosu (Offline test için)
     string videoPath = "/home/pi/data/source/TEST_1.mp4"; 

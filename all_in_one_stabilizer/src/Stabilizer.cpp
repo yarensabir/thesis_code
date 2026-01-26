@@ -50,20 +50,12 @@ struct MotionKalman {
 // ---------------------------------------------------------
 // 1. GERÇEK ZAMANLI FONKSİYON
 // ---------------------------------------------------------
-// Stabilizer.cpp içine
-
-// Stabilizer.cpp içine (Eski fonksiyonu silip bunu yapıştırın)
-
 void runRealTimeStabilization(int method, string outputPath, string csvPath, int recordMode) {
     // --- 1. AYARLAR ---
     signal(SIGINT, signalHandler);
     stop_flag = false;
 
     cout << "[BILGI] Kamera baslatiliyor (V4L2 Modu)..." << endl;
-
-    // HATAYI ÇÖZEN KISIM BURASI:
-    // GStreamer pipeline string'ini SİLDİK.
-    // Doğrudan index 0 ile açıyoruz çünkü terminalden 'libcamerify' ile başlatıyorsunuz.
     VideoCapture cap(0, CAP_V4L2);
 
     if(!cap.isOpened()) {
@@ -76,16 +68,11 @@ void runRealTimeStabilization(int method, string outputPath, string csvPath, int
     cap.set(CAP_PROP_FRAME_HEIGHT, 480);
     cap.set(CAP_PROP_FPS, 30.0);
 
-    cout << "[BILGI] Kamera acildi. Isinma bekleniyor..." << endl;
-    
-    // Isınma turu (Boş kareleri at)
+    // Isınma turu
     Mat dummy;
     for(int i=0; i<10; i++) {
         cap >> dummy;
-        if (dummy.empty()) {
-            cout << "Uyari: Bos kare atlandi." << endl;
-            continue; 
-        }
+        if (dummy.empty()) continue; 
     }
 
     // --- 2. KAYITÇI AYARLARI ---
@@ -94,7 +81,6 @@ void runRealTimeStabilization(int method, string outputPath, string csvPath, int
     VideoWriter writerMain; 
     VideoWriter writerRaw;
     
-    // Codec: MP4V (Linux'ta en sorunsuzu)
     int codec = VideoWriter::fourcc('m', 'p', '4', 'v');
 
     if (recordMode == 2) writerMain.open(outputPath, codec, 30.0, Size(w * 2, h), true);
@@ -105,47 +91,59 @@ void runRealTimeStabilization(int method, string outputPath, string csvPath, int
         writerRaw.open(rawOut, codec, 30.0, Size(w, h), true);
     }
 
-    // --- 3. STABILIZASYON HAZIRLIĞI ---
+    // --- 3. CSV ve DEĞİŞKENLER ---
     ofstream csvFile(csvPath);
-    csvFile << "frame,dx,dy,smooth_x,smooth_y" << endl;
+
+    csvFile << "frame,dx,dy,smooth_x,smooth_y,fps,proc_time_ms" << endl;
 
     Mat curr, currGray, prev, prevGray;
     
     cout << "[BILGI] Ilk kare aliniyor..." << endl;
     cap >> prev;
     if(prev.empty()) {
-        cerr << "HATA: Ilk kare alinamadi! Program sonlaniyor." << endl;
+        cerr << "HATA: Ilk kare alinamadi!" << endl;
         return;
     }
     cvtColor(prev, prevGray, COLOR_BGR2GRAY);
 
-    // Optik Akış için İlk Noktaları Bul
     vector<Point2f> prevPts, currPts;
     goodFeaturesToTrack(prevGray, prevPts, 200, 0.01, 10);
     
-    cout << "[BILGI] Stabilizasyon dongusu basladi. (Durdurmak icin CTRL+C)" << endl;
+    cout << "[BILGI] Stabilizasyon ve FPS kaydi basladi..." << endl;
 
-    // Değişkenler
     double x = 0, y = 0, a = 0;
     double smooth_x = 0, smooth_y = 0, smooth_a = 0;
     
-    double max_shift = 20.0;     // Savrulma limiti
-    double alpha = 0.15;         // Tepki hızı
-    double noise_threshold = 0.5;// Gürültü filtresi
+    double max_shift = 20.0;     
+    double alpha = 0.15;         
+    double noise_threshold = 0.5;
 
     int frame_counter = 0;
 
+    // --- FPS İÇİN ZAMAN DEĞİŞKENİ ---
+    auto t_prev = std::chrono::steady_clock::now();
+
     // --- 4. ANA DÖNGÜ ---
     while(!stop_flag) {
+        // Döngü başı zamanı
+        auto t_now = std::chrono::steady_clock::now();
+        
+        // Geçen süreyi milisaniye cinsinden hesapla
+        std::chrono::duration<double, std::milli> elapsed = t_now - t_prev;
+        double dt_ms = elapsed.count();
+        
+        // Anlık FPS hesabı (Sıfıra bölme hatası olmasın diye +0.001 ekliyoruz)
+        double instantaneous_fps = 1000.0 / (dt_ms + 0.001);
+        
+        // Zamanı güncelle
+        t_prev = t_now;
+
         cap >> curr;
-        if(curr.empty()) {
-            cout << "Hata: Kare okunamadi (Kamera koptu mu?)" << endl;
-            break;
-        }
+        if(curr.empty()) break;
         
         cvtColor(curr, currGray, COLOR_BGR2GRAY);
 
-        // --- OPTİK AKIŞ (HIZLI TAKİP) ---
+        // --- OPTİK AKIŞ ---
         vector<uchar> status;
         vector<float> err;
         double dx = 0, dy = 0, da = 0;
@@ -153,7 +151,6 @@ void runRealTimeStabilization(int method, string outputPath, string csvPath, int
         if(prevPts.size() > 0) {
             calcOpticalFlowPyrLK(prevGray, currGray, prevPts, currPts, status, err);
             
-            // Noktaları temizle
             vector<Point2f> pA, pB;
             for(size_t i=0; i < status.size(); i++) {
                 if(status[i]) {
@@ -162,7 +159,6 @@ void runRealTimeStabilization(int method, string outputPath, string csvPath, int
                 }
             }
 
-            // Dönüşüm Matrisi
             if(pA.size() > 10) {
                 Mat T = estimateAffinePartial2D(pA, pB);
                 if(!T.empty()) {
@@ -171,15 +167,14 @@ void runRealTimeStabilization(int method, string outputPath, string csvPath, int
                     da = atan2(T.at<double>(1, 0), T.at<double>(0, 0));
                 }
             }
-            prevPts = pB; // Noktaları güncelle
+            prevPts = pB; 
         }
 
-        // --- NOKTA TAKVİYESİ (Sadece gerektiğinde) ---
         if(prevPts.size() < 30) {
             goodFeaturesToTrack(prevGray, prevPts, 200, 0.01, 10);
         }
 
-        // --- MATEMATİKSEL STABİLİZASYON ---
+        // --- STABILIZASYON ---
         if (abs(dx) < noise_threshold) dx = 0;
         if (abs(dy) < noise_threshold) dy = 0;
         if (abs(dx) > 50.0 || abs(dy) > 50.0) { dx = 0; dy = 0; da = 0; }
@@ -194,13 +189,11 @@ void runRealTimeStabilization(int method, string outputPath, string csvPath, int
         double diff_y = smooth_y - y;
         double diff_a = smooth_a - a;
 
-        // Savrulma Önleyici (Clamp)
         if (diff_x > max_shift) diff_x = max_shift;
         if (diff_x < -max_shift) diff_x = -max_shift;
         if (diff_y > max_shift) diff_y = max_shift;
         if (diff_y < -max_shift) diff_y = -max_shift;
 
-        // Warp İşlemi
         Mat T_new = Mat::eye(2, 3, CV_64F);
         T_new.at<double>(0, 0) = cos(diff_a); 
         T_new.at<double>(0, 1) = -sin(diff_a);
@@ -222,17 +215,21 @@ void runRealTimeStabilization(int method, string outputPath, string csvPath, int
             if(recordMode == 1 && writerRaw.isOpened()) writerRaw.write(curr);
         }
 
-        // CSV Log
-        csvFile << frame_counter << "," << dx << "," << dy << "," << smooth_x << "," << smooth_y << endl;
+        // CSV Loglama (FPS ve Süre eklendi)
+        csvFile << frame_counter << "," 
+                << dx << "," << dy << "," 
+                << smooth_x << "," << smooth_y << "," 
+                << instantaneous_fps << "," << dt_ms 
+                << endl;
 
         curr.copyTo(prev);
         currGray.copyTo(prevGray);
         frame_counter++;
         
-        if(frame_counter % 30 == 0) cout << "Kare: " << frame_counter << "\r" << flush;
+        // Terminale bilgi
+        if(frame_counter % 30 == 0) cout << "Kare: " << frame_counter << " | FPS: " << (int)instantaneous_fps << "\r" << flush;
     }
 
-    // --- KAPANIŞ ---
     cout << "\nDosyalar kaydediliyor..." << endl;
     if(writerMain.isOpened()) writerMain.release();
     if(writerRaw.isOpened()) writerRaw.release();
@@ -336,32 +333,66 @@ void runRealTimeStabilization_old(RealTimeMethod method, string outputName, stri
 // 2. ÇEVRİMDIŞI FONKSİYON
 // ---------------------------------------------------------
 void runOfflineStabilization(string videoPath, OfflineMethod method, string outputName, string logName) {
-    cout << "[Offline] Analiz yapiliyor..." << endl;
+    cout << "[Offline] Video analizi basliyor: " << videoPath << endl;
+    
     VideoCapture cap(videoPath);
-    if(!cap.isOpened()) { cerr << "Dosya yok!" << endl; return; }
+    if(!cap.isOpened()) { 
+        cerr << "HATA: Dosya acilamadi!" << endl; 
+        return; 
+    }
 
+    // 1. Orijinal Video Bilgilerini Al
+    double original_fps = cap.get(CAP_PROP_FPS);
+    int w = (int)cap.get(CAP_PROP_FRAME_WIDTH);
+    int h = (int)cap.get(CAP_PROP_FRAME_HEIGHT);
+    int total_frames = (int)cap.get(CAP_PROP_FRAME_COUNT);
+
+    // Eğer FPS okunamazsa varsayılan 30 yap
+    if (std::isnan(original_fps) || original_fps <= 0) original_fps = 30.0;
+
+    cout << "Video Bilgisi: " << w << "x" << h << " @ " << original_fps << " FPS | Toplam: " << total_frames << " kare" << endl;
+
+    // --- HAZIRLIK ---
     MotionEstimator estimator;
     Mat curr;
+    
+    // İlk kareyi okuyup başlatalım
+    cap >> curr;
+    if(curr.empty()) return;
+    estimator.initialize(curr);
+
     vector<TransformParam> trajectory; 
     vector<TransformParam> transforms; 
     TransformParam cumulative(0,0,0);
 
-    cap >> curr;
-    estimator.initialize(curr);
+    // --- ADIM 1: HAREKET ANALİZİ (PASS 1) ---
+    cout << "[Adim 1/3] Hareket verisi toplaniyor (Tum video taraniyor)..." << endl;
+    
+    // İlk kare için
+    transforms.push_back(TransformParam(0,0,0));
+    trajectory.push_back(cumulative);
 
-    // PASS 1: Veri Topla
+    int p1_counter = 0;
     while(true) {
         cap >> curr;
         if(curr.empty()) break;
+        
         TransformParam motion = estimator.estimate(curr);
+        
         transforms.push_back(motion);
         cumulative += motion;
         trajectory.push_back(cumulative);
+        
+        p1_counter++;
+        if(p1_counter % 100 == 0) cout << "Analiz: " << p1_counter << "/" << total_frames << "\r" << flush;
     }
+    cout << "\n[Adim 1 Tamamlandi] Hareket profili cikarildi." << endl;
+
+    // --- ADIM 2: YÖRÜNGE YUMUŞATMA (PASS 2) ---
+    cout << "[Adim 2/3] Yorunge yumusatiliyor..." << endl;
     
-    // PASS 2: Yumuşatma
     vector<TransformParam> smoothed_trajectory;
-    int RADIUS = 30; 
+    int RADIUS = 30; // Yumuşatma yarıçapı
 
     for(size_t i=0; i<trajectory.size(); i++) {
         TransformParam sum(0,0,0);
@@ -369,51 +400,87 @@ void runOfflineStabilization(string videoPath, OfflineMethod method, string outp
 
         for(int j=-RADIUS; j<=RADIUS; j++) {
             if(i+j >= 0 && i+j < trajectory.size()) {
-                if (method == OFF_MOVING_AVERAGE) {
-                    sum += trajectory[i+j];
-                    total_weight += 1.0;
-                } 
-                else if (method == OFF_GAUSSIAN) {
+                double weight = 1.0;
+                if (method == OFF_GAUSSIAN) {
                     double sigma = RADIUS / 3.0;
-                    double weight = exp(-(j*j) / (2 * sigma * sigma));
-                    TransformParam p = trajectory[i+j];
-                    sum.dx += p.dx * weight; sum.dy += p.dy * weight; sum.da += p.da * weight;
-                    total_weight += weight;
+                    weight = exp(-(j*j) / (2 * sigma * sigma));
                 }
+                
+                TransformParam p = trajectory[i+j];
+                sum.dx += p.dx * weight; 
+                sum.dy += p.dy * weight; 
+                sum.da += p.da * weight;
+                total_weight += weight;
             }
         }
-        if (method == OFF_MOVING_AVERAGE) smoothed_trajectory.push_back(sum / total_weight);
-        else smoothed_trajectory.push_back(TransformParam(sum.dx/total_weight, sum.dy/total_weight, sum.da/total_weight));
+        
+        if(total_weight > 0)
+            smoothed_trajectory.push_back(TransformParam(sum.dx/total_weight, sum.dy/total_weight, sum.da/total_weight));
+        else
+            smoothed_trajectory.push_back(trajectory[i]);
     }
 
-    // GÜNCELLEME: CSV Kaydı (Parametreden gelen 'logName' kullanılıyor)
-    cout << "Veriler kaydediliyor: " << logName << endl;
-    ofstream logFile(logName);
-    logFile << "frame,raw_x,raw_y,raw_a,smooth_x,smooth_y,smooth_a" << endl;
-    for(size_t i=0; i < trajectory.size(); i++) {
-        logFile << i << "," 
-                << trajectory[i].dx << "," << trajectory[i].dy << "," << trajectory[i].da << ","
-                << smoothed_trajectory[i].dx << "," << smoothed_trajectory[i].dy << "," << smoothed_trajectory[i].da 
-                << endl;
-    }
-    logFile.close();
+    // --- ADIM 3: VİDEO OLUŞTURMA VE PERFORMANS ÖLÇÜMÜ (PASS 3) ---
+    cout << "[Adim 3/3] Video isleniyor ve kaydediliyor..." << endl;
 
-    // PASS 3: Video Yazma
-    cout << "Video olusturuluyor: " << outputName << endl;
-    cap.release(); cap.open(videoPath);
-    int w = (int)cap.get(CAP_PROP_FRAME_WIDTH);
-    int h = (int)cap.get(CAP_PROP_FRAME_HEIGHT);
+    // Videoyu başa sar
+    cap.release();
+    cap.open(videoPath);
     
-    VideoWriter writer(outputName, VideoWriter::fourcc('m','p','4','v'), 30, Size(w,h));
-    cap >> curr; 
-    for(size_t i=0; i<transforms.size(); i++) {
+    VideoWriter writer(outputName, VideoWriter::fourcc('m','p','4','v'), original_fps, Size(w,h), true);
+    
+    ofstream csvFile(logName);
+
+    csvFile << "frame,raw_x,raw_y,smooth_x,smooth_y,proc_fps,proc_time_ms" << endl;
+
+    cap >> curr; // İlk kareyi atla (Pass 1 ile senkronizasyon için)
+    
+    auto t_start_total = std::chrono::steady_clock::now();
+
+    for(size_t i=0; i<transforms.size() && i<smoothed_trajectory.size(); i++) {
+        // İşlem başlama zamanı
+        auto t_now = std::chrono::steady_clock::now();
+        
         cap >> curr;
         if(curr.empty()) break;
+
         TransformParam diff = smoothed_trajectory[i] - trajectory[i];
+
         Mat M = getAffineFromParam(diff);
         Mat stabilized;
         warpAffine(curr, stabilized, M, curr.size());
+
         writer.write(stabilized);
+
+        // İşlem bitiş zamanı ve FPS hesabı
+        auto t_end = std::chrono::steady_clock::now();
+        std::chrono::duration<double, std::milli> elapsed = t_end - t_now;
+        double dt_ms = elapsed.count();
+        double inst_fps = 1000.0 / (dt_ms + 0.001); // Anlık işlem hızı
+
+        // CSV'ye Kayıt
+        csvFile << i << "," 
+                << trajectory[i].dx << "," << trajectory[i].dy << ","
+                << smoothed_trajectory[i].dx << "," << smoothed_trajectory[i].dy << ","
+                << inst_fps << "," << dt_ms 
+                << endl;
+        
+        if(i % 30 == 0) {
+            cout << "Islenen: " << i << "/" << total_frames 
+                 << " | Hiz: " << (int)inst_fps << " FPS\r" << flush;
+        }
     }
-    cout << "Offline Bitti." << endl;
+
+    auto t_end_total = std::chrono::steady_clock::now();
+    std::chrono::duration<double> total_elapsed = t_end_total - t_start_total;
+
+    writer.release();
+    csvFile.close();
+    cap.release();
+    
+    cout << "\n\n[Offline Tamamlandi]" << endl;
+    cout << "Toplam Sure: " << total_elapsed.count() << " saniye" << endl;
+    cout << "Ortalama Hiz: " << total_frames / total_elapsed.count() << " FPS" << endl;
+    cout << "Video: " << outputName << endl;
+    cout << "Veri : " << logName << endl;
 }
